@@ -24,6 +24,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * 公众号：bugstack虫洞栈  ｛关注获取学习源码｝
  * 虫洞群：①群5398358 ②群5360692
  * Create by 小傅哥 on 2019
+ *
+ * 数据包的定义
+ * 这是一个数据包的父类，所有的通信协议包都需要继承这个父类
+ * 定义这个父类的主要原因是让每个通信协议包都可以找到自己的解析命令
+ *
+ * 实现方法是在父类定义一个抽象方法getCommand，每个子类去实现这个方法
+ * 然后其他的类在调用这个方法的时候，就可以知道应该传递那个命令
+ *
+ *
  */
 public abstract class Packet {
 
