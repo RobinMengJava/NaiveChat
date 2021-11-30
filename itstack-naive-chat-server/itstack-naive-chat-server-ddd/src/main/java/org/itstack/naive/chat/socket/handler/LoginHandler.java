@@ -32,110 +32,140 @@ public class LoginHandler extends MyBizHandler<LoginRequest> {
 
     @Override
     public void channelRead(Channel channel, LoginRequest msg) {
-        logger.info("登陆请求处理：{} ", JSON.toJSONString(msg));
-        // 1. 登陆失败返回false
+        logger.info("登录请求处理,请求参数=[{}]", JSON.toJSONString(msg));
+
+        // 判断用户名、密码是否正确
         boolean auth = userService.checkAuth(msg.getUserId(), msg.getUserPassword());
         if (!auth) {
-            // 传输消息
+            logger.info("用户登录校验失败...");
+            // 发送错误消息
             channel.writeAndFlush(new LoginResponse(false));
             return;
         }
-        // 2. 登陆成功绑定Channel
-        // 2.1 绑定用户ID
+
+        // 登录成功绑定channel
         SocketChannelUtil.addChannel(msg.getUserId(), channel);
-        // 2.2 绑定群组
-        List<String> groupsIdList = userService.queryUserGroupsIdList(msg.getUserId());
-        for (String groupId : groupsIdList) {
-            SocketChannelUtil.addChannelGroup(groupId, channel);
-        }
-        // 3. 反馈消息；用户信息、用户对话框列表、好友列表、群组列表
+
         // 组装消息包
         LoginResponse loginResponse = new LoginResponse();
-        // 3.1 用户信息
-        UserInfo userInfo = userService.queryUserInfo(msg.getUserId());
-        // 3.2 对话框
-        List<TalkBoxInfo> talkBoxInfoList = userService.queryTalkBoxInfoList(msg.getUserId());
-        for (TalkBoxInfo talkBoxInfo : talkBoxInfoList) {
-            ChatTalkDto chatTalk = new ChatTalkDto();
-            chatTalk.setTalkId(talkBoxInfo.getTalkId());
-            chatTalk.setTalkType(talkBoxInfo.getTalkType());
-            chatTalk.setTalkName(talkBoxInfo.getTalkName());
-            chatTalk.setTalkHead(talkBoxInfo.getTalkHead());
-            chatTalk.setTalkSketch(talkBoxInfo.getTalkSketch());
-            chatTalk.setTalkDate(talkBoxInfo.getTalkDate());
-            loginResponse.getChatTalkList().add(chatTalk);
-
-            // 好友；聊天消息
-            if (Constants.TalkType.Friend.getCode().equals(talkBoxInfo.getTalkType())) {
-                List<ChatRecordDto> chatRecordDtoList = new ArrayList<>();
-                List<ChatRecordInfo> chatRecordInfoList = userService.queryChatRecordInfoList(talkBoxInfo.getTalkId(), msg.getUserId(), Constants.TalkType.Friend.getCode());
-                for (ChatRecordInfo chatRecordInfo : chatRecordInfoList) {
-                    ChatRecordDto chatRecordDto = new ChatRecordDto();
-                    chatRecordDto.setTalkId(talkBoxInfo.getTalkId());
-                    boolean msgType = msg.getUserId().equals(chatRecordInfo.getUserId());
-                    // 自己发的消息
-                    if (msgType) {
-                        chatRecordDto.setUserId(chatRecordInfo.getUserId());
-                        chatRecordDto.setMsgUserType(0); // 消息类型[0自己/1好友]
-                    }
-                    // 好友发的消息
-                    else {
-                        chatRecordDto.setUserId(chatRecordInfo.getFriendId());
-                        chatRecordDto.setMsgUserType(1); // 消息类型[0自己/1好友]
-                    }
-                    chatRecordDto.setMsgContent(chatRecordInfo.getMsgContent());
-                    chatRecordDto.setMsgType(chatRecordInfo.getMsgType());
-                    chatRecordDto.setMsgDate(chatRecordInfo.getMsgDate());
-                    chatRecordDtoList.add(chatRecordDto);
-                }
-                chatTalk.setChatRecordList(chatRecordDtoList);
-            }
-            // 群组；聊天消息
-            else if (Constants.TalkType.Group.getCode().equals(talkBoxInfo.getTalkType())) {
-                List<ChatRecordDto> chatRecordDtoList = new ArrayList<>();
-                List<ChatRecordInfo> chatRecordInfoList = userService.queryChatRecordInfoList(talkBoxInfo.getTalkId(), msg.getUserId(), Constants.TalkType.Group.getCode());
-                for (ChatRecordInfo chatRecordInfo : chatRecordInfoList) {
-                    UserInfo memberInfo = userService.queryUserInfo(chatRecordInfo.getUserId());
-                    ChatRecordDto chatRecordDto = new ChatRecordDto();
-                    chatRecordDto.setTalkId(talkBoxInfo.getTalkId());
-                    chatRecordDto.setUserId(memberInfo.getUserId());
-                    chatRecordDto.setUserNickName(memberInfo.getUserNickName());
-                    chatRecordDto.setUserHead(memberInfo.getUserHead());
-                    chatRecordDto.setMsgContent(chatRecordInfo.getMsgContent());
-                    chatRecordDto.setMsgDate(chatRecordInfo.getMsgDate());
-                    boolean msgType = msg.getUserId().equals(chatRecordInfo.getUserId());
-                    chatRecordDto.setMsgUserType(msgType ? 0 : 1); // 消息类型[0自己/1好友]
-                    chatRecordDto.setMsgType(chatRecordInfo.getMsgType());
-                    chatRecordDtoList.add(chatRecordDto);
-                }
-                chatTalk.setChatRecordList(chatRecordDtoList);
-            }
-
-        }
-        // 3.3 群组
-        List<GroupsInfo> groupsInfoList = userService.queryUserGroupInfoList(msg.getUserId());
-        for (GroupsInfo groupsInfo : groupsInfoList) {
-            GroupsDto groups = new GroupsDto();
-            groups.setGroupId(groupsInfo.getGroupId());
-            groups.setGroupName(groupsInfo.getGroupName());
-            groups.setGroupHead(groupsInfo.getGroupHead());
-            loginResponse.getGroupsList().add(groups);
-        }
-        // 3.4 好友
-        List<UserFriendInfo> userFriendInfoList = userService.queryUserFriendInfoList(msg.getUserId());
-        for (UserFriendInfo userFriendInfo : userFriendInfoList) {
-            UserFriendDto userFriend = new UserFriendDto();
-            userFriend.setFriendId(userFriendInfo.getFriendId());
-            userFriend.setFriendName(userFriendInfo.getFriendName());
-            userFriend.setFriendHead(userFriendInfo.getFriendHead());
-            loginResponse.getUserFriendList().add(userFriend);
-        }
 
         loginResponse.setSuccess(true);
+
+        //  用户信息
+        UserInfo userInfo = userService.queryUserInfo(msg.getUserId());
         loginResponse.setUserId(userInfo.getUserId());
         loginResponse.setUserNickName(userInfo.getUserNickName());
         loginResponse.setUserHead(userInfo.getUserHead());
-        // 传输消息
+
+        // 用户对话框
+        List<TalkBoxInfo> talkBoxInfoList = userService.queryTalkBoxInfoList(msg.getUserId());
+        if (null != talkBoxInfoList && talkBoxInfoList.size() > 0) {
+            for (TalkBoxInfo talkBoxInfo : talkBoxInfoList) {
+                ChatTalkDto chatTalkDto = new ChatTalkDto();
+                chatTalkDto.setTalkId(talkBoxInfo.getTalkId());
+                chatTalkDto.setTalkName(talkBoxInfo.getTalkName());
+                chatTalkDto.setTalkType(talkBoxInfo.getTalkType());
+                chatTalkDto.setTalkHead(talkBoxInfo.getTalkHead());
+                chatTalkDto.setTalkSketch(talkBoxInfo.getTalkSketch());
+                chatTalkDto.setTalkDate(talkBoxInfo.getTalkDate());
+                loginResponse.getChatTalkList().add(chatTalkDto);
+
+                // 聊天消息
+
+                // 好友的
+                if (Constants.TalkType.Friend.getCode().equals(talkBoxInfo.getTalkType())) {
+                    // 声明一个用来存储聊天记录
+                    List<ChatRecordDto> chatRecordDtoList = new ArrayList<ChatRecordDto>();
+
+                    // 1. 查询好友类型的聊天记录
+                    List<ChatRecordInfo> chatRecordFriendsList = userService.queryChatRecordInfoList(talkBoxInfo.getTalkId(), msg.getUserId(), talkBoxInfo.getTalkType());
+
+                    // 2. 将聊天记录封装成DTO
+                    if (null != chatRecordFriendsList && !chatRecordFriendsList.isEmpty()) {
+                        for (ChatRecordInfo chatRecordInfo : chatRecordFriendsList) {
+                            ChatRecordDto chatRecordDto = new ChatRecordDto();
+                            chatRecordDto.setTalkId(talkBoxInfo.getTalkId());
+                            boolean msgType = msg.getUserId().equals(chatRecordInfo.getUserId());
+                            // 自己发的消息
+                            if (msgType) {
+                                // 填充自己的userId
+                                chatRecordDto.setUserId(msg.getUserId());
+                                // 填充消息类型为自己发送的
+                                chatRecordDto.setMsgType(0);
+                            }
+                            // 别人发送的消息
+                            else {
+                                // 填充别人的userId
+                                chatRecordDto.setUserId(chatRecordInfo.getFriendId());
+                                // 填充消息类型为好友发送的
+                                chatRecordDto.setMsgType(1);
+                            }
+
+                            chatRecordDto.setMsgContent(chatRecordInfo.getMsgContent());
+                            chatRecordDto.setMsgType(chatRecordInfo.getMsgType());
+                            chatRecordDto.setMsgDate(chatRecordInfo.getMsgDate());
+                            chatRecordDtoList.add(chatRecordDto);
+                        }
+                    }
+                    // 3. 加入聊天记录列表List
+                    chatTalkDto.setChatRecordList(chatRecordDtoList);
+                }
+
+                else if (Constants.TalkType.Group.getCode().equals(talkBoxInfo.getTalkType())) {
+                    // 声明一个变量，用于存储聊天记录
+                    List<ChatRecordDto> chatRecordDtoList = new ArrayList<>();
+                    // 1. 查询群组类型的聊天记录
+                    List<ChatRecordInfo> chatRecordGroupList = userService.queryChatRecordInfoList(talkBoxInfo.getTalkId(), msg.getUserId(), talkBoxInfo.getTalkType());
+
+                    // 2. 将群组的聊天记录封装成DTO
+                    if (null != chatRecordGroupList && !chatRecordGroupList.isEmpty()) {
+                        for (ChatRecordInfo chatRecordInfo : chatRecordGroupList) {
+                            UserInfo memberInfo = userService.queryUserInfo(chatRecordInfo.getUserId());
+                            ChatRecordDto chatRecordDto = new ChatRecordDto();
+                            chatRecordDto.setTalkId(talkBoxInfo.getTalkId());
+                            chatRecordDto.setUserId(memberInfo.getUserId());
+                            chatRecordDto.setUserNickName(memberInfo.getUserNickName());
+                            chatRecordDto.setUserHead(memberInfo.getUserHead());
+                            chatRecordDto.setMsgContent(chatRecordInfo.getMsgContent());
+                            chatRecordDto.setMsgDate(chatRecordInfo.getMsgDate());
+                            boolean msgType = msg.getUserId().equals(chatRecordInfo.getUserId());
+                            chatRecordDto.setMsgType(msgType ? 0 : 1);
+                            chatRecordDto.setMsgType(chatRecordInfo.getMsgType());
+                            chatRecordDtoList.add(chatRecordDto);
+
+                        }
+
+                        chatTalkDto.setChatRecordList(chatRecordDtoList);
+                    }
+
+                }
+            }
+        }
+
+        // 群组
+        List<GroupsInfo> groupsInfoList = userService.queryUserGroupInfoList(msg.getUserId());
+        if (null != groupsInfoList && !groupsInfoList.isEmpty()) {
+            for (GroupsInfo groupsInfo : groupsInfoList) {
+                GroupsDto groupsDto = new GroupsDto();
+                groupsDto.setGroupId(groupsInfo.getGroupId());
+                groupsDto.setGroupName(groupsInfo.getGroupName());
+                groupsDto.setGroupHead(groupsInfo.getGroupHead());
+                loginResponse.getGroupsList().add(groupsDto);
+            }
+        }
+
+        // 好友
+        List<UserFriendInfo> userFriendInfoList = userService.queryUserFriendInfoList(msg.getUserId());
+        if (null != userFriendInfoList && !userFriendInfoList.isEmpty()) {
+            for (UserFriendInfo userFriendInfo : userFriendInfoList) {
+                UserFriendDto userFriendDto = new UserFriendDto();
+                userFriendDto.setFriendId(userFriendInfo.getFriendId());
+                userFriendDto.setFriendName(userFriendInfo.getFriendName());
+                userFriendDto.setFriendHead(userFriendInfo.getFriendHead());
+                loginResponse.getUserFriendList().add(userFriendDto);
+            }
+        }
+
         channel.writeAndFlush(loginResponse);
     }
 
