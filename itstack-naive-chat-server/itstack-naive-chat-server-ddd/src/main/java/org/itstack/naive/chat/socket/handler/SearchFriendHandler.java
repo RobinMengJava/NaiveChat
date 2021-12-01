@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import io.netty.channel.Channel;
 import org.itstack.naive.chat.application.UserService;
 import org.itstack.naive.chat.domain.user.model.LuckUserInfo;
+import org.itstack.naive.chat.domain.user.model.UserFriendInfo;
 import org.itstack.naive.chat.protocol.friend.SearchFriendRequest;
 import org.itstack.naive.chat.protocol.friend.SearchFriendResponse;
 import org.itstack.naive.chat.protocol.friend.dto.UserDto;
@@ -25,20 +26,39 @@ public class SearchFriendHandler extends MyBizHandler<SearchFriendRequest> {
 
     @Override
     public void channelRead(Channel channel, SearchFriendRequest msg) {
-        logger.info("搜索好友请求处理：{}", JSON.toJSONString(msg));
-        List<UserDto> userDtoList = new ArrayList<>();
-        List<LuckUserInfo> userInfoList = userService.queryFuzzyUserInfoList(msg.getUserId(), msg.getSearchKey());
-        for (LuckUserInfo userInfo : userInfoList) {
-            UserDto userDto = new UserDto();
-            userDto.setUserId(userInfo.getUserId());
-            userDto.setUserNickName(userInfo.getUserNickName());
-            userDto.setUserHead(userInfo.getUserHead());
-            userDto.setStatus(userInfo.getStatus());
-            userDtoList.add(userDto);
+        logger.info("================>>>>>> 搜索好友请求=[{}]", JSON.toJSONString(msg));
+
+        List<UserDto> userDtoList = new ArrayList<UserDto>();
+        List<LuckUserInfo> searchFriendList = userService.queryFuzzyUserInfoList(msg.getUserId(), msg.getSearchKey());
+        if (null != searchFriendList && !searchFriendList.isEmpty()) {
+            for (LuckUserInfo luckUserInfo : searchFriendList) {
+                UserDto userDto = new UserDto();
+                userDto.setUserId(luckUserInfo.getUserId());
+                userDto.setUserHead(luckUserInfo.getUserHead());
+                userDto.setUserNickName(luckUserInfo.getUserNickName());
+                userDto.setStatus(luckUserInfo.getStatus());
+                userDtoList.add(userDto);
+            }
         }
+
         SearchFriendResponse response = new SearchFriendResponse();
         response.setList(userDtoList);
         channel.writeAndFlush(response);
+
+//        logger.info("搜索好友请求处理：{}", JSON.toJSONString(msg));
+//        List<UserDto> userDtoList = new ArrayList<>();
+//        List<LuckUserInfo> userInfoList = userService.queryFuzzyUserInfoList(msg.getUserId(), msg.getSearchKey());
+//        for (LuckUserInfo userInfo : userInfoList) {
+//            UserDto userDto = new UserDto();
+//            userDto.setUserId(userInfo.getUserId());
+//            userDto.setUserNickName(userInfo.getUserNickName());
+//            userDto.setUserHead(userInfo.getUserHead());
+//            userDto.setStatus(userInfo.getStatus());
+//            userDtoList.add(userDto);
+//        }
+//        SearchFriendResponse response = new SearchFriendResponse();
+//        response.setList(userDtoList);
+//        channel.writeAndFlush(response);
     }
 
 }
