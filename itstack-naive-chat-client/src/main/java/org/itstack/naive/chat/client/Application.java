@@ -56,7 +56,9 @@ public class Application extends javafx.application.Application {
 
         // Channel状态定时巡检；3秒后每5秒执行一次
         scheduledExecutorService.scheduleAtFixedRate(() -> {
+            // nettyClient.isActive()方法判断当前通信管道是否断线的一个方法
             while (!nettyClient.isActive()) {
+                // 客户端断线之后，开始重启客户端
                 System.out.println("通信管道巡检：通信管道状态 " + nettyClient.isActive());
                 try {
                     System.out.println("通信管道巡检：断线重连[Begin]");
